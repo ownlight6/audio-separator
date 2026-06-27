@@ -1,3 +1,8 @@
 /target
 Cargo.lock
-*.onnx
+
+# ONNX model downloaded at build time
+Kim_Vocal_1.onnx
+
+# onnxruntime DLL (auto-downloaded or embedded)
+onnxruntime.dll

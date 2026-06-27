@@ -7,6 +7,9 @@ use clap::Parser;
 use std::path::PathBuf;
 use std::sync::mpsc;
 
+#[cfg(all(target_os = "windows", embed_ort_dll))]
+const EMBEDDED_ORT_DLL: &[u8] = include_bytes!("../onnxruntime.dll");
+
 #[derive(Parser, Debug)]
 #[command(
     name = "audio-separator",
@@ -38,6 +41,35 @@ fn auto_locate_ort_dylib() {
 
     let exe_path = std::env::current_exe().unwrap_or_default();
     let exe_dir = exe_path.parent().unwrap_or(std::path::Path::new("."));
+    let native_name = if cfg!(target_os = "windows") {
+        "onnxruntime.dll"
+    } else if cfg!(target_os = "macos") {
+        "libonnxruntime.dylib"
+    } else {
+        "libonnxruntime.so"
+    };
+
+    // Extract embedded DLL if it doesn't exist next to the exe yet
+    #[cfg(all(target_os = "windows", embed_ort_dll))]
+    {
+        let dll_path = exe_dir.join(native_name);
+        if !dll_path.exists() {
+            if let Some(parent) = dll_path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            if std::fs::write(&dll_path, EMBEDDED_ORT_DLL).is_ok() {
+                if let Some(path_str) = dll_path.to_str() {
+                    std::env::set_var("ORT_DYLIB_PATH", path_str);
+                    return;
+                }
+            }
+        } else {
+            if let Some(path_str) = dll_path.to_str() {
+                std::env::set_var("ORT_DYLIB_PATH", path_str);
+                return;
+            }
+        }
+    }
 
     let candidates: Vec<PathBuf> = if cfg!(target_os = "macos") {
         vec![

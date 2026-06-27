@@ -50,10 +50,21 @@ jobs:
             "https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/Kim_Vocal_1.onnx"
         shell: bash
 
+      - name: Download onnxruntime DLL (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          ONNXRUNTIME_VERSION="1.24.2"
+          echo "Downloading onnxruntime v$ONNXRUNTIME_VERSION (Windows x64)..."
+          curl -sL -o onnxruntime.nupkg \
+            "https://www.nuget.org/api/v2/package/Microsoft.ML.OnnxRuntime/$ONNXRUNTIME_VERSION"
+          7z x onnxruntime.nupkg -oonnxruntime_nuget -y
+          cp onnxruntime_nuget/runtimes/win-x64/native/onnxruntime.dll .
+          rm -rf onnxruntime_nuget onnxruntime.nupkg
+          ls -la onnxruntime.dll
+
       - name: Build release
         run: cargo build --release --target ${{ matrix.target }}
-        env:
-          ORT_DYLIB_PATH: skip
 
       - name: Package macOS .app
         if: runner.os == 'macOS'
@@ -85,16 +96,10 @@ jobs:
         run: |
           cd target/${{ matrix.target }}/release
 
-          # load-dynamic feature skips onnxruntime binary download at build time,
-          # so we download it explicitly here for packaging.
-          ONNXRUNTIME_VERSION="1.24.2"
-          echo "Downloading onnxruntime v$ONNXRUNTIME_VERSION (Windows x64)..."
-          curl -sL -o onnxruntime.nupkg \
-            "https://www.nuget.org/api/v2/package/Microsoft.ML.OnnxRuntime/$ONNXRUNTIME_VERSION"
-          7z x onnxruntime.nupkg -oonnxruntime_nuget -y
-          cp onnxruntime_nuget/runtimes/win-x64/native/onnxruntime.dll .
-          rm -rf onnxruntime_nuget onnxruntime.nupkg
-          ls -la onnxruntime.dll
+          # onnxruntime.dll was downloaded to the project root before build
+          # and embedded into the binary by build.rs. Copy it alongside the exe
+          # for fast first-run startup (no extraction delay).
+          cp "$GITHUB_WORKSPACE/onnxruntime.dll" .
 
           7z a "$GITHUB_WORKSPACE/${{ matrix.name }}.zip" audio-separator.exe onnxruntime.dll
 
