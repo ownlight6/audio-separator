@@ -49,14 +49,13 @@ fn auto_locate_ort_dylib() {
         "libonnxruntime.so"
     };
 
-    // Extract embedded DLL if it doesn't exist next to the exe yet
+    // Extract embedded DLL to a system cache directory (never next to the exe)
     #[cfg(all(target_os = "windows", embed_ort_dll))]
     {
-        let dll_path = exe_dir.join(native_name);
+        let cache_dir = std::env::temp_dir().join("audio-separator");
+        let dll_path = cache_dir.join(native_name);
         if !dll_path.exists() {
-            if let Some(parent) = dll_path.parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
+            let _ = std::fs::create_dir_all(&cache_dir);
             if std::fs::write(&dll_path, EMBEDDED_ORT_DLL).is_ok() {
                 if let Some(path_str) = dll_path.to_str() {
                     std::env::set_var("ORT_DYLIB_PATH", path_str);
