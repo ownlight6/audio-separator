@@ -85,9 +85,16 @@ jobs:
         run: |
           cd target/${{ matrix.target }}/release
 
-          # ort-sys downloads onnxruntime.dll during build
-          # Find and copy it next to the exe
-          find ../../../ -name "onnxruntime.dll" -type f | head -1 | xargs -I{} cp {} . 2>/dev/null || true
+          # load-dynamic feature skips onnxruntime binary download at build time,
+          # so we download it explicitly here for packaging.
+          ONNXRUNTIME_VERSION="1.24.2"
+          echo "Downloading onnxruntime v$ONNXRUNTIME_VERSION (Windows x64)..."
+          curl -sL -o onnxruntime.nupkg \
+            "https://www.nuget.org/api/v2/package/Microsoft.ML.OnnxRuntime/$ONNXRUNTIME_VERSION"
+          7z x onnxruntime.nupkg -oonnxruntime_nuget -y
+          cp onnxruntime_nuget/runtimes/win-x64/native/onnxruntime.dll .
+          rm -rf onnxruntime_nuget onnxruntime.nupkg
+          ls -la onnxruntime.dll
 
           7z a "$GITHUB_WORKSPACE/${{ matrix.name }}.zip" audio-separator.exe onnxruntime.dll
 
