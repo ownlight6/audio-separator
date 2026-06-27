@@ -1,0 +1,127 @@
+name: Build Audio Separator
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: 'Publish to GitHub Releases?'
+        type: boolean
+        default: false
+      version:
+        description: 'Release version (e.g. 0.1.0), required if publishing'
+        type: string
+        default: ''
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: aarch64-apple-darwin
+            name: audio-separator-macos-arm64
+          - os: macos-15
+            target: x86_64-apple-darwin
+            name: audio-separator-macos-x86_64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            name: audio-separator-windows-x86_64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Download ONNX model
+        run: |
+          curl -L -o Kim_Vocal_1.onnx \
+            "https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/Kim_Vocal_1.onnx"
+        shell: bash
+
+      - name: Build release
+        run: cargo build --release --target ${{ matrix.target }}
+        env:
+          ORT_DYLIB_PATH: skip
+
+      - name: Package macOS .app
+        if: runner.os == 'macOS'
+        run: |
+          cd target/${{ matrix.target }}/release
+
+          # Install onnxruntime for dylib
+          brew install onnxruntime
+
+          # Create .app bundle
+          APP="Audio Separator.app"
+          mkdir -p "$APP/Contents/MacOS"
+          mkdir -p "$APP/Contents/Frameworks"
+          cp audio-separator "$APP/Contents/MacOS/audio-separator"
+          chmod +x "$APP/Contents/MacOS/audio-separator"
+          cp -L /opt/homebrew/lib/libonnxruntime.dylib "$APP/Contents/Frameworks/" 2>/dev/null \
+            || cp -L /usr/local/lib/libonnxruntime.dylib "$APP/Contents/Frameworks/"
+          cp "$GITHUB_WORKSPACE/macos/Info.plist" "$APP/Contents/Info.plist"
+
+          # Compress
+          tar -czf "$GITHUB_WORKSPACE/${{ matrix.name }}-app.tar.gz" "$APP"
+
+          # Also package bare binary
+          tar -czf "$GITHUB_WORKSPACE/${{ matrix.name }}.tar.gz" audio-separator
+
+      - name: Package Windows
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          cd target/${{ matrix.target }}/release
+
+          # ort-sys downloads onnxruntime.dll during build
+          # Find and copy it next to the exe
+          find ../../../ -name "onnxruntime.dll" -type f | head -1 | xargs -I{} cp {} . 2>/dev/null || true
+
+          7z a "$GITHUB_WORKSPACE/${{ matrix.name }}.zip" audio-separator.exe onnxruntime.dll
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: |
+            ${{ matrix.name }}*.tar.gz
+            ${{ matrix.name }}*.zip
+          if-no-files-found: error
+
+  release:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.publish_release == 'true' && github.event.inputs.version != '' }}
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.event.inputs.version }}
+          name: v${{ github.event.inputs.version }}
+          files: dist/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

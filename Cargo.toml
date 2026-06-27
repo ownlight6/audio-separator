@@ -1,0 +1,42 @@
+[package]
+name = "audio-separator"
+version = "0.1.0"
+edition = "2021"
+description = "Separate vocals from background music using AI (MDX-Net)"
+license = "GPL-3.0"
+
+[lib]
+name = "audio_separator"
+path = "src/lib.rs"
+
+[features]
+default = ["gui"]
+gui = ["dep:eframe", "dep:egui", "dep:rfd", "dep:pollster"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+
+# Audio I/O
+symphonia = { version = "0.5", features = ["mp3", "flac", "ogg", "vorbis", "pcm"] }
+hound = "3.5"
+
+# ML Inference
+ort = { version = "2.0.0-rc.9", features = ["ndarray", "load-dynamic"] }
+ndarray = "0.17"
+
+# DSP
+realfft = "3"
+num-complex = "0.4"
+
+# Resampling
+rubato = "0.15"
+
+# Model download
+ureq = "2"
+dirs = "6"
+
+# GUI (optional)
+eframe = { version = "0.30", optional = true }
+egui = { version = "0.30", optional = true }
+rfd = { version = "0.15", optional = true }
+pollster = { version = "0.4", optional = true }
