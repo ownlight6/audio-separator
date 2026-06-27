@@ -6,6 +6,9 @@ use ort::session::Session;
 use ort::value::Value;
 use realfft::RealFftPlanner;
 
+#[cfg(feature = "directml")]
+use ort::ep;
+
 const N_FFT: usize = 6144;
 const HOP_LENGTH: usize = 1024;
 fn hann_window(size: usize) -> Vec<f32> {
@@ -107,13 +110,39 @@ pub struct MdxSeparator {
 }
 
 impl MdxSeparator {
-    pub fn new(model_path: &Path) -> Result<Self, String> {
-        let session = Session::builder()
-            .map_err(|e| format!("Failed to create ONNX session builder: {}", e))?
-            .with_intra_threads(num_cpus())
-            .map_err(|e| format!("Failed to set threads: {}", e))?
+    /// Build an ONNX session with GPU acceleration if available.
+    fn build_session(model_path: &Path) -> Result<Session, String> {
+        let base = || {
+            Session::builder()
+                .map_err(|e| format!("Failed to create ONNX session builder: {}", e))?
+                .with_intra_threads(num_cpus())
+                .map_err(|e| format!("Failed to set threads: {}", e))
+        };
+
+        // Try DirectML first (Windows), fall back to CPU-only on any error.
+        #[cfg(feature = "directml")]
+        {
+            let dml_dispatch = ep::DirectML::default().build();
+            let result = base()?
+                .with_execution_providers([dml_dispatch, ep::CPU::default().build()])
+                .map_err(|e| format!("Failed to register execution providers: {}", e))?
+                .commit_from_file(model_path)
+                .map_err(|e| format!("Failed to load ONNX model (DirectML): {}", e));
+
+            if let Ok(session) = result {
+                return Ok(session);
+            }
+            eprintln!("DirectML unavailable, falling back to CPU.");
+        }
+
+        // CPU-only fallback
+        base()?
             .commit_from_file(model_path)
-            .map_err(|e| format!("Failed to load ONNX model: {}", e))?;
+            .map_err(|e| format!("Failed to load ONNX model: {}", e))
+    }
+
+    pub fn new(model_path: &Path) -> Result<Self, String> {
+        let session = Self::build_session(model_path)?;
 
         // Read model input shape: [batch, n_channels, dim_f, dim_t]
         let (n_channels, dim_f, dim_t) = match session.inputs()[0].dtype() {
