@@ -24,10 +24,6 @@ hound = "3.5"
 ort = { version = "2.0.0-rc.9", features = ["ndarray", "load-dynamic"] }
 ndarray = "0.17"
 
-# On Windows, enable DirectML for GPU acceleration
-[target.'cfg(windows)'.dependencies]
-ort = { version = "2.0.0-rc.9", features = ["directml"] }
-
 # DSP
 realfft = "3"
 num-complex = "0.4"
@@ -44,3 +40,7 @@ eframe = { version = "0.30", optional = true }
 egui = { version = "0.30", optional = true }
 rfd = { version = "0.15", optional = true }
 pollster = { version = "0.4", optional = true }
+
+# Windows-only: enable DirectML GPU acceleration in ONNX Runtime
+[target.'cfg(windows)'.dependencies]
+ort = { version = "2.0.0-rc.9", features = ["directml"] }
