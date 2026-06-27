@@ -10,9 +10,8 @@ name = "audio_separator"
 path = "src/lib.rs"
 
 [features]
-default = ["gui", "directml"]
+default = ["gui"]
 gui = ["dep:eframe", "dep:egui", "dep:rfd", "dep:pollster"]
-directml = ["ort/directml"]
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
@@ -24,6 +23,10 @@ hound = "3.5"
 # ML Inference
 ort = { version = "2.0.0-rc.9", features = ["ndarray", "load-dynamic"] }
 ndarray = "0.17"
+
+# On Windows, enable DirectML for GPU acceleration
+[target.'cfg(windows)'.dependencies]
+ort = { version = "2.0.0-rc.9", features = ["directml"] }
 
 # DSP
 realfft = "3"

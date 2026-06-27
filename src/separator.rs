@@ -6,7 +6,7 @@ use ort::session::Session;
 use ort::value::Value;
 use realfft::RealFftPlanner;
 
-#[cfg(feature = "directml")]
+#[cfg(target_os = "windows")]
 use ort::ep;
 
 const N_FFT: usize = 6144;
@@ -120,7 +120,7 @@ impl MdxSeparator {
         };
 
         // Try DirectML first (Windows), fall back to CPU-only on any error.
-        #[cfg(feature = "directml")]
+        #[cfg(target_os = "windows")]
         {
             let dml_dispatch = ep::DirectML::default().build();
             let result = base()?

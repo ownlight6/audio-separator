@@ -4,7 +4,7 @@
 
 **AI 驱动的音频人声/伴奏分离工具**
 
-支持 MP3 / FLAC / OGG 输入 · 内置图形界面 · 模型内嵌 · 双击即用
+支持 MP3 / FLAC / OGG 输入 · 内置图形界面 · 模型内嵌 · Windows DirectML GPU 加速 · 双击即用
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](LICENSE) [![Rust](https://img.shields.io/badge/Rust-1.70%2B-orange.svg)](https://www.rust-lang.org/)
 
@@ -14,7 +14,9 @@
 
 ## 界面预览
 
-![GUI](imgs/gui.png)
+| macOS | Windows |
+|:-----:|:-------:|
+| ![macOS](imgs/mac.png) | ![Windows](imgs/win.png) |
 
 ## 特性
 
@@ -23,7 +25,8 @@
 | **图形界面** | 内置 GUI，支持中英文切换、拖放文件、原生文件选择器 |
 | **CLI 模式** | 完整的命令行界面，适合脚本和自动化场景 |
 | **模型内嵌** | ONNX 模型编译进二进制文件，无需联网下载 |
-| **双击即用** | macOS `.app` 包，双击启动，不弹终端，无需任何依赖 |
+| **双击即用** | macOS `.app` 包 / Windows `.exe`，双击启动，无需任何依赖 |
+| **GPU 加速** | Windows DirectML 加速（NVIDIA/AMD/Intel GPU），自动回退 CPU |
 | **高质量分离** | 基于 MDX-Net (Kim_Vocal_1) 深度学习模型，分离效果优秀 |
 | **多格式支持** | 输入 MP3 / FLAC / OGG，输出 WAV（保留原始采样率） |
 
@@ -50,7 +53,7 @@
 
 **前置要求：**
 - Rust 1.70+（推荐使用 [rustup](https://rustup.rs/) 安装）
-- ONNX Runtime（macOS: `brew install onnxruntime`）
+- macOS: `brew install onnxruntime`
 - [Kim_Vocal_1.onnx](https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/Kim_Vocal_1.onnx) 模型文件（放在项目根目录，编译时自动嵌入）
 
 ```bash
@@ -60,13 +63,15 @@ cd audio-separator
 # 下载模型（编译时自动嵌入二进制文件）
 curl -LO https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/Kim_Vocal_1.onnx
 
-# 编译（默认包含 GUI）
+# 编译（默认包含 GUI、Windows 上自动启用 DirectML GPU 加速）
 cargo build --release
 
 # 生成 macOS .app 包
 ./scripts/create-app-bundle.sh
 ```
 
+> **Windows 用户注意**：如需 GPU 加速，需将 DirectML 版 `onnxruntime.dll` 放在项目根目录再编译。可从 [NuGet](https://www.nuget.org/packages/Microsoft.ML.OnnxRuntime.DirectML/1.24.2) 下载：`runtimes/win-x64/native/onnxruntime.dll`。编译时将自动嵌入二进制文件，首次运行自动提取。
+>
 > 如果项目目录中没有 `Kim_Vocal_1.onnx`，编译产物将在首次运行时自动下载模型。
 
 ### 仅编译 CLI（无 GUI）
@@ -160,7 +165,7 @@ Options:
 |----|------|
 | `symphonia` | 纯 Rust 音频解码（MP3/FLAC/OGG） |
 | `hound` | WAV 文件写入 |
-| `ort` | ONNX Runtime Rust 绑定（ML 推理） |
+| `ort` | ONNX Runtime Rust 绑定（ML 推理），Windows 启用 DirectML |
 | `realfft` | 实数 FFT（STFT/ISTFT） |
 | `rubato` | 高质量音频重采样 |
 | `egui` / `eframe` | 跨平台 GUI 框架 |
@@ -174,15 +179,16 @@ src/
 ├── lib.rs           — 库导出：separate_file() 完整分离管线
 ├── gui.rs           — egui 图形界面（中英文双语）
 ├── audio_io.rs      — 音频解码/编码/重采样
-├── separator.rs     — STFT + MDX-Net ONNX 推理 + ISTFT
+├── separator.rs     — STFT + MDX-Net ONNX 推理 + ISTFT（含 DirectML GPU 加速）
 └── model_manager.rs — 模型内嵌/下载/缓存管理
-build.rs             — 检测模型文件，条件编译嵌入
+build.rs             — 检测模型与 onnxruntime.dll，条件编译嵌入
 macos/
 └── Info.plist       — macOS .app 包配置
 scripts/
 └── create-app-bundle.sh — macOS .app 打包脚本
 imgs/
-└── gui.png          — GUI 界面截图
+├── mac.png          — macOS GUI 界面截图
+└── win.png          — Windows GUI 界面截图
 ```
 
 ## 许可证
